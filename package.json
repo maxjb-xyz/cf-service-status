@@ -1,0 +1,22 @@
+{
+  "name": "cf-service-status",
+  "version": "1.0.0",
+  "description": "A self-hosted status page running on Cloudflare Workers",
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev",
+    "build": "npm run build:static",
+    "build:static": "node scripts/generate-static.js",
+    "deploy": "npm run build:static && wrangler deploy",
+    "db:init": "wrangler d1 execute status-db --local --file=./schema.sql",
+    "db:init:remote": "wrangler d1 execute status-db --remote --file=./schema.sql"
+  },
+  "dependencies": {
+    "hono": "^4.0.0"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20240117.0",
+    "typescript": "^5.3.0",
+    "wrangler": "^3.25.0"
+  }
+}

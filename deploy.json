@@ -1,0 +1,12 @@
+{
+    "$schema": "https://deploy.workers.cloudflare.com/schemas/deploy.json",
+    "name": "cf-service-status",
+    "description": "A self-hosted status page with automatic health monitoring",
+    "icon": "https://imagedelivery.net/Yy5BxE3EUH0Xtpyq6fC3Kg/fe0de7ce-5a4f-45db-c03d-5c21df8bd300/public",
+    "secrets": [
+        {
+            "name": "SITE_TOKEN",
+            "description": "Admin panel password - choose a secure token"
+        }
+    ]
+}

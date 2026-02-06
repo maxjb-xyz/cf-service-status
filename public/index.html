@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Service Status</title>
+  <meta name="description" content="Current status of our services">
+  <link rel="stylesheet" href="/styles.css">
+</head>
+
+<body>
+  <div class="container">
+    <header class="header">
+      <div class="header__logo" id="site-title">Service Status</div>
+      <div class="header__actions">
+        <button class="theme-toggle" id="theme-toggle" title="Toggle theme">
+          <svg id="theme-icon-dark" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+            stroke-width="2">
+            <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+          </svg>
+          <svg id="theme-icon-light" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+            stroke-width="2" style="display:none">
+            <circle cx="12" cy="12" r="5"></circle>
+            <line x1="12" y1="1" x2="12" y2="3"></line>
+            <line x1="12" y1="21" x2="12" y2="23"></line>
+            <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+            <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+            <line x1="1" y1="12" x2="3" y2="12"></line>
+            <line x1="21" y1="12" x2="23" y2="12"></line>
+            <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+            <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+          </svg>
+        </button>
+        <a href="/admin" class="header__admin-link">Admin</a>
+      </div>
+    </header>
+
+    <div id="status-banner"></div>
+    <div id="services-container">
+      <div class="loading">
+        <div class="loading__spinner"></div>
+        <p>Loading status...</p>
+      </div>
+    </div>
+
+    <footer class="footer">
+      <p>Last updated: <span id="last-updated">-</span></p>
+    </footer>
+  </div>
+
+  <script>
+    // Theme handling
+    const themeToggle = document.getElementById('theme-toggle');
+    const darkIcon = document.getElementById('theme-icon-dark');
+    const lightIcon = document.getElementById('theme-icon-light');
+
+    function setTheme(theme) {
+      document.documentElement.setAttribute('data-theme', theme);
+      localStorage.setItem('theme', theme);
+      if (theme === 'light') {
+        darkIcon.style.display = 'none';
+        lightIcon.style.display = 'block';
+      } else {
+        darkIcon.style.display = 'block';
+        lightIcon.style.display = 'none';
+      }
+    }
+
+    // Load saved theme or default to dark
+    const savedTheme = localStorage.getItem('theme') || 'dark';
+    setTheme(savedTheme);
+
+    themeToggle.addEventListener('click', () => {
+      const current = document.documentElement.getAttribute('data-theme');
+      setTheme(current === 'light' ? 'dark' : 'light');
+    });
+
+    const STATUS_LABELS = {
+      operational: 'All Systems Operational',
+      degraded: 'Partial Outage',
+      outage: 'Major Outage'
+    };
+
+    async function loadStatus() {
+      try {
+        const response = await fetch('/api/status');
+        const data = await response.json();
+        renderPage(data);
+      } catch (error) {
+        console.error('Failed to load status:', error);
+        document.getElementById('services-container').innerHTML = `
+          <div class="empty-state">
+            <div class="empty-state__icon">⚠️</div>
+            <h3 class="empty-state__title">Unable to load status</h3>
+            <p class="empty-state__description">Please try again later.</p>
+          </div>
+        `;
+      }
+    }
+
+    function renderPage(data) {
+      // Update title
+      document.getElementById('site-title').textContent = data.settings.site_title;
+      document.title = data.settings.site_title;
+
+      // Render overall status
+      const statusIcon = data.overall_status === 'operational' ? '✓' :
+        data.overall_status === 'degraded' ? '!' : '✕';
+      const bannerHtml = `
+        <div class="overall-status">
+          <div class="overall-status__icon overall-status__icon--${data.overall_status}">
+            ${statusIcon}
+          </div>
+          <h1 class="overall-status__text">${STATUS_LABELS[data.overall_status]}</h1>
+          <p class="overall-status__description">${data.settings.site_description}</p>
+        </div>
+      `;
+      document.getElementById('status-banner').innerHTML = bannerHtml;
+
+      // Render services
+      const container = document.getElementById('services-container');
+
+      if (data.categories.length === 0) {
+        container.innerHTML = `
+          <div class="empty-state">
+            <div class="empty-state__icon">📊</div>
+            <h3 class="empty-state__title">No services configured</h3>
+            <p class="empty-state__description">Add services in the admin panel to start monitoring.</p>
+          </div>
+        `;
+        return;
+      }
+
+      let html = '<div class="section-header"><h2 class="section-title">Live Status</h2></div>';
+
+      for (const categoryData of data.categories) {
+        const categoryName = categoryData.category?.name || '';
+        html += `<section class="category">`;
+        if (categoryName) {
+          html += `<h3 class="category__header">${escapeHtml(categoryName)}</h3>`;
+        }
+        html += categoryData.services.map(s => renderServiceCard(s, data.settings.history_days)).join('');
+        html += `</section>`;
+      }
+      container.innerHTML = html;
+
+      // Update timestamp
+      document.getElementById('last-updated').textContent = new Date(data.last_updated).toLocaleString();
+    }
+
+    function renderServiceCard(serviceData, historyDays) {
+      const { service, status, uptime, history } = serviceData;
+      const currentStatus = status?.status || 'unknown';
+      const statusLabel = currentStatus.charAt(0).toUpperCase() + currentStatus.slice(1);
+      const historyBar = generateHistoryBar(history, historyDays);
+      const statusClass = currentStatus !== 'operational' ? `service-card__status--${currentStatus}` : '';
+
+      return `
+        <article class="service-card">
+          <div class="service-card__header">
+            <div class="service-card__info">
+              <div class="service-card__icon service-card__icon--${currentStatus}">
+                ${currentStatus === 'operational' ? '✓' : currentStatus === 'degraded' ? '!' : '✕'}
+              </div>
+              <div class="service-card__details">
+                <div class="service-card__name">${escapeHtml(service.name)}</div>
+                <div class="service-card__status ${statusClass}">${statusLabel}</div>
+              </div>
+            </div>
+            <div class="service-card__uptime">
+              <div class="service-card__uptime-value">${uptime.toFixed(2)}%</div>
+              <div class="service-card__uptime-label">Uptime</div>
+            </div>
+          </div>
+          <div class="history-bar">${historyBar}</div>
+        </article>
+      `;
+    }
+
+    function generateHistoryBar(history, days) {
+      const now = new Date();
+      const segments = [];
+
+      for (let i = days - 1; i >= 0; i--) {
+        const date = new Date(now);
+        date.setDate(date.getDate() - i);
+        const dateStr = date.toISOString().split('T')[0];
+
+        const dayRecords = history.filter(h => h.checked_at.startsWith(dateStr));
+
+        let status = 'unknown';
+        if (dayRecords.length > 0) {
+          if (dayRecords.some(r => r.status === 'outage')) {
+            status = 'outage';
+          } else if (dayRecords.some(r => r.status === 'degraded')) {
+            status = 'degraded';
+          } else {
+            status = 'operational';
+          }
+        }
+
+        const tooltip = `${date.toLocaleDateString()}: ${status.charAt(0).toUpperCase() + status.slice(1)}`;
+        segments.push(`<div class="history-bar__segment history-bar__segment--${status}" data-tooltip="${tooltip}"></div>`);
+      }
+
+      return segments.join('');
+    }
+
+    function escapeHtml(text) {
+      const div = document.createElement('div');
+      div.textContent = text;
+      return div.innerHTML;
+    }
+
+    loadStatus();
+    setInterval(loadStatus, 60000);
+  </script>
+</body>
+
+</html>

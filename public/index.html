@@ -47,7 +47,7 @@
     </div>
 
     <footer class="footer">
-      <p>Last updated: <span id="last-updated">-</span></p>
+      <p><span id="last-updated">-</span></p>
     </footer>
   </div>
 
@@ -83,6 +83,21 @@
       degraded: 'Partial Outage',
       outage: 'Major Outage'
     };
+
+    // Common CF datacenter airport codes to city names
+    const CF_LOCATIONS = {
+      'MIA': 'Miami', 'ATL': 'Atlanta', 'DFW': 'Dallas', 'IAD': 'Ashburn',
+      'EWR': 'Newark', 'ORD': 'Chicago', 'LAX': 'Los Angeles', 'SJC': 'San Jose',
+      'SEA': 'Seattle', 'DEN': 'Denver', 'PHX': 'Phoenix', 'IAH': 'Houston',
+      'BOS': 'Boston', 'LHR': 'London', 'CDG': 'Paris', 'FRA': 'Frankfurt',
+      'AMS': 'Amsterdam', 'SIN': 'Singapore', 'HKG': 'Hong Kong', 'NRT': 'Tokyo',
+      'SYD': 'Sydney', 'GRU': 'São Paulo', 'YYZ': 'Toronto', 'MEX': 'Mexico City'
+    };
+
+    function getLocationName(code) {
+      if (!code) return null;
+      return CF_LOCATIONS[code] || code;
+    }
 
     async function loadStatus() {
       try {
@@ -147,8 +162,17 @@
       }
       container.innerHTML = html;
 
-      // Update timestamp
-      document.getElementById('last-updated').textContent = new Date(data.last_updated).toLocaleString();
+      // Update footer with last check info
+      let footerText = `Last updated: ${new Date(data.last_updated).toLocaleString()}`;
+      if (data.last_check?.time) {
+        const checkTime = new Date(data.last_check.time).toLocaleTimeString();
+        const locationName = getLocationName(data.last_check.location);
+        footerText = `Last checked: ${checkTime}`;
+        if (locationName) {
+          footerText += ` (from ${locationName})`;
+        }
+      }
+      document.getElementById('last-updated').textContent = footerText;
     }
 
     function renderServiceCard(serviceData, historyHours) {

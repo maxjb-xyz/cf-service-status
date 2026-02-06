@@ -25,6 +25,7 @@ export interface StatusHistory {
     response_time: number | null;
     status_code: number | null;
     error_message: string | null;
+    check_location: string | null;
     checked_at: string;
 }
 
@@ -171,15 +172,16 @@ export async function addStatusHistory(
     status: 'operational' | 'degraded' | 'outage',
     responseTime: number | null,
     statusCode: number | null,
-    errorMessage: string | null
+    errorMessage: string | null,
+    checkLocation: string | null = null
 ): Promise<void> {
     const id = generateId();
     const now = new Date().toISOString();
     await db.prepare(`
-    INSERT INTO status_history (id, service_id, status, response_time, status_code, error_message, checked_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO status_history (id, service_id, status, response_time, status_code, error_message, check_location, checked_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
   `)
-        .bind(id, serviceId, status, responseTime, statusCode, errorMessage, now)
+        .bind(id, serviceId, status, responseTime, statusCode, errorMessage, checkLocation, now)
         .run();
 }
 

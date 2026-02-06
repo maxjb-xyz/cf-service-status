@@ -30,6 +30,7 @@ CREATE TABLE IF NOT EXISTS status_history (
   response_time INTEGER,
   status_code INTEGER,
   error_message TEXT,
+  check_location TEXT,
   checked_at TEXT NOT NULL
 );
 

@@ -18,6 +18,7 @@ interface CheckResult {
     responseTime: number;
     statusCode: number | null;
     errorMessage: string | null;
+    checkLocation: string | null;
 }
 
 async function checkService(
@@ -26,6 +27,7 @@ async function checkService(
     timeout: number
 ): Promise<CheckResult> {
     const startTime = Date.now();
+    let checkLocation: string | null = null;
 
     try {
         const controller = new AbortController();
@@ -42,6 +44,11 @@ async function checkService(
         clearTimeout(timeoutId);
         const responseTime = Date.now() - startTime;
 
+        // Get the CF datacenter location from the response (if available)
+        // @ts-ignore - CF-specific property
+        const cfData = response.cf as { colo?: string } | undefined;
+        checkLocation = cfData?.colo || null;
+
         // Determine status based on response
         if (response.status === expectedStatus) {
             // Check if response time is too slow (over 3 seconds = degraded)
@@ -50,28 +57,32 @@ async function checkService(
                     status: 'degraded',
                     responseTime,
                     statusCode: response.status,
-                    errorMessage: 'Slow response time'
+                    errorMessage: 'Slow response time',
+                    checkLocation
                 };
             }
             return {
                 status: 'operational',
                 responseTime,
                 statusCode: response.status,
-                errorMessage: null
+                errorMessage: null,
+                checkLocation
             };
         } else if (response.status >= 500) {
             return {
                 status: 'outage',
                 responseTime,
                 statusCode: response.status,
-                errorMessage: `Server error: ${response.status}`
+                errorMessage: `Server error: ${response.status}`,
+                checkLocation
             };
         } else {
             return {
                 status: 'degraded',
                 responseTime,
                 statusCode: response.status,
-                errorMessage: `Unexpected status: ${response.status} (expected ${expectedStatus})`
+                errorMessage: `Unexpected status: ${response.status} (expected ${expectedStatus})`,
+                checkLocation
             };
         }
     } catch (error) {
@@ -82,7 +93,8 @@ async function checkService(
             status: 'outage',
             responseTime,
             statusCode: null,
-            errorMessage: errorMessage.includes('abort') ? 'Request timeout' : errorMessage
+            errorMessage: errorMessage.includes('abort') ? 'Request timeout' : errorMessage,
+            checkLocation
         };
     }
 }
@@ -117,7 +129,8 @@ export async function runHealthChecks(env: Env): Promise<void> {
             result.status,
             result.responseTime,
             result.statusCode,
-            result.errorMessage
+            result.errorMessage,
+            result.checkLocation
         );
 
         // Send Discord notification if status changed
@@ -135,7 +148,8 @@ export async function runHealthChecks(env: Env): Promise<void> {
             );
         }
 
-        console.log(`Checked ${service.name}: ${result.status} (${result.responseTime}ms)`);
+        const locationInfo = result.checkLocation ? ` from ${result.checkLocation}` : '';
+        console.log(`Checked ${service.name}: ${result.status} (${result.responseTime}ms${locationInfo})`);
     }
 
     // Cleanup old history (keep 90 days)

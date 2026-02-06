@@ -63,6 +63,12 @@ Access `/admin` and log in with your SITE_TOKEN to:
 - Set up Discord webhook notifications
 - Manually trigger health checks
 
+## Troubleshooting
+
+If you're having issues with request timeouts to your services, your worker may be running from a suboptimal location.
+You can change the location by using the "Placement" feature in the Worker settings.
+You can set it to either "Smart" or "Region".
+
 ## API
 
 | Endpoint | Description |

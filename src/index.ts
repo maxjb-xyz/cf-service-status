@@ -139,6 +139,15 @@ app.get('/api/status', async (c) => {
             overallStatus = 'degraded';
         }
     }
+    // Get last check info from most recent status
+    let lastCheckTime: string | null = null;
+    let lastCheckLocation: string | null = null;
+    for (const [, status] of latestStatuses) {
+        if (!lastCheckTime || status.checked_at > lastCheckTime) {
+            lastCheckTime = status.checked_at;
+            lastCheckLocation = status.check_location;
+        }
+    }
 
     return c.json({
         settings: {
@@ -148,6 +157,10 @@ app.get('/api/status', async (c) => {
         },
         overall_status: overallStatus,
         categories: Object.values(statusByCategory),
+        last_check: {
+            time: lastCheckTime,
+            location: lastCheckLocation
+        },
         last_updated: new Date().toISOString()
     });
 });

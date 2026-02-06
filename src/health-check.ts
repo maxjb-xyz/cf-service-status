@@ -21,13 +21,25 @@ interface CheckResult {
     checkLocation: string | null;
 }
 
+// Get the current CF datacenter location by querying the trace endpoint
+async function getWorkerLocation(): Promise<string | null> {
+    try {
+        const response = await fetch('https://cloudflare.com/cdn-cgi/trace');
+        const text = await response.text();
+        const match = text.match(/colo=([A-Z]{3})/);
+        return match ? match[1] : null;
+    } catch {
+        return null;
+    }
+}
+
 async function checkService(
     url: string,
     expectedStatus: number,
-    timeout: number
+    timeout: number,
+    workerLocation: string | null
 ): Promise<CheckResult> {
     const startTime = Date.now();
-    let checkLocation: string | null = null;
 
     try {
         const controller = new AbortController();
@@ -44,11 +56,6 @@ async function checkService(
         clearTimeout(timeoutId);
         const responseTime = Date.now() - startTime;
 
-        // Get the CF datacenter location from the response (if available)
-        // @ts-ignore - CF-specific property
-        const cfData = response.cf as { colo?: string } | undefined;
-        checkLocation = cfData?.colo || null;
-
         // Determine status based on response
         if (response.status === expectedStatus) {
             // Check if response time is too slow (over 3 seconds = degraded)
@@ -58,7 +65,7 @@ async function checkService(
                     responseTime,
                     statusCode: response.status,
                     errorMessage: 'Slow response time',
-                    checkLocation
+                    checkLocation: workerLocation
                 };
             }
             return {
@@ -66,7 +73,7 @@ async function checkService(
                 responseTime,
                 statusCode: response.status,
                 errorMessage: null,
-                checkLocation
+                checkLocation: workerLocation
             };
         } else if (response.status >= 500) {
             return {
@@ -74,7 +81,7 @@ async function checkService(
                 responseTime,
                 statusCode: response.status,
                 errorMessage: `Server error: ${response.status}`,
-                checkLocation
+                checkLocation: workerLocation
             };
         } else {
             return {
@@ -82,7 +89,7 @@ async function checkService(
                 responseTime,
                 statusCode: response.status,
                 errorMessage: `Unexpected status: ${response.status} (expected ${expectedStatus})`,
-                checkLocation
+                checkLocation: workerLocation
             };
         }
     } catch (error) {
@@ -94,13 +101,19 @@ async function checkService(
             responseTime,
             statusCode: null,
             errorMessage: errorMessage.includes('abort') ? 'Request timeout' : errorMessage,
-            checkLocation
+            checkLocation: workerLocation
         };
     }
 }
 
 export async function runHealthChecks(env: Env): Promise<void> {
     const db = env.DB;
+
+    // Get the current worker location (datacenter)
+    const workerLocation = await getWorkerLocation();
+    if (workerLocation) {
+        console.log(`Running health checks from ${workerLocation}`);
+    }
 
     // Get all services and their latest statuses
     const [services, latestStatuses, settings] = await Promise.all([
@@ -116,7 +129,7 @@ export async function runHealthChecks(env: Env): Promise<void> {
 
     // Check each service
     for (const service of services) {
-        const result = await checkService(service.url, service.expected_status, service.timeout);
+        const result = await checkService(service.url, service.expected_status, service.timeout, workerLocation);
 
         // Get previous status
         const previousHistory = latestStatuses.get(service.id);

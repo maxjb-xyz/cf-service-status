@@ -145,7 +145,7 @@ export const indexHtml = `<!DOCTYPE html>
         if (categoryName) {
           html += \`<h3 class="category__header">\${escapeHtml(categoryName)}</h3>\`;
         }
-        html += categoryData.services.map(s => renderServiceCard(s, data.settings.history_days)).join('');
+        html += categoryData.services.map(s => renderServiceCard(s)).join('');
         html += \`</section>\`;
       }
       container.innerHTML = html;
@@ -154,11 +154,11 @@ export const indexHtml = `<!DOCTYPE html>
       document.getElementById('last-updated').textContent = new Date(data.last_updated).toLocaleString();
     }
 
-    function renderServiceCard(serviceData, historyDays) {
+    function renderServiceCard(serviceData) {
       const { service, status, uptime, history } = serviceData;
       const currentStatus = status?.status || 'unknown';
       const statusLabel = currentStatus.charAt(0).toUpperCase() + currentStatus.slice(1);
-      const historyBar = generateHistoryBar(history, historyDays);
+      const historyBar = generateHistoryBar(history);
       const statusClass = currentStatus !== 'operational' ? \`service-card__status--\${currentStatus}\` : '';
 
       return \`
@@ -183,29 +183,34 @@ export const indexHtml = `<!DOCTYPE html>
       \`;
     }
 
-    function generateHistoryBar(history, days) {
+    function generateHistoryBar(history, hours = 24) {
       const now = new Date();
       const segments = [];
 
-      for (let i = days - 1; i >= 0; i--) {
-        const date = new Date(now);
-        date.setDate(date.getDate() - i);
-        const dateStr = date.toISOString().split('T')[0];
+      for (let i = hours - 1; i >= 0; i--) {
+        const hourStart = new Date(now);
+        hourStart.setHours(hourStart.getHours() - i, 0, 0, 0);
+        const hourEnd = new Date(hourStart);
+        hourEnd.setHours(hourEnd.getHours() + 1);
 
-        const dayRecords = history.filter(h => h.checked_at.startsWith(dateStr));
+        const hourRecords = history.filter(h => {
+          const checkedAt = new Date(h.checked_at);
+          return checkedAt >= hourStart && checkedAt < hourEnd;
+        });
 
         let status = 'unknown';
-        if (dayRecords.length > 0) {
-          if (dayRecords.some(r => r.status === 'outage')) {
+        if (hourRecords.length > 0) {
+          if (hourRecords.some(r => r.status === 'outage')) {
             status = 'outage';
-          } else if (dayRecords.some(r => r.status === 'degraded')) {
+          } else if (hourRecords.some(r => r.status === 'degraded')) {
             status = 'degraded';
           } else {
             status = 'operational';
           }
         }
 
-        const tooltip = \`\${date.toLocaleDateString()}: \${status.charAt(0).toUpperCase() + status.slice(1)}\`;
+        const timeStr = hourStart.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+        const tooltip = \`\${timeStr}: \${status.charAt(0).toUpperCase() + status.slice(1)}\`;
         segments.push(\`<div class="history-bar__segment history-bar__segment--\${status}" data-tooltip="\${tooltip}"></div>\`);
       }
 
@@ -842,13 +847,14 @@ export const stylesCSS = `/* Theme variables */
   /* Dark theme (default) */
   --bg-page: #111827;
   --bg-card: #1f2937;
-  --bg-card-hover: #374151;
+  --bg-card-hover: #252f3f;
   --bg-input: #374151;
   --text-primary: #f9fafb;
   --text-secondary: #9ca3af;
   --text-muted: #6b7280;
   --border-color: #374151;
   --divider: #374151;
+  --bar-unknown: #4b5563;
 }
 
 [data-theme="light"] {
@@ -861,6 +867,7 @@ export const stylesCSS = `/* Theme variables */
   --text-muted: #6b7280;
   --border-color: #e5e7eb;
   --divider: #e5e7eb;
+  --bar-unknown: #d1d5db;
 }
 
 * {
@@ -1139,7 +1146,7 @@ body {
 }
 
 .history-bar__segment--unknown {
-  background: var(--border-color);
+  background: var(--bar-unknown);
 }
 
 .history-bar__segment:hover::after {

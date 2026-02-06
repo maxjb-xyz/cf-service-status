@@ -11,6 +11,13 @@
     "db:init": "wrangler d1 execute status-db --local --file=./schema.sql",
     "db:init:remote": "wrangler d1 execute status-db --remote --file=./schema.sql"
   },
+  "cloudflare": {
+    "bindings": {
+      "SITE_TOKEN": {
+        "description": "Admin panel password - choose a secure token"
+      }
+    }
+  },
   "dependencies": {
     "hono": "^4.0.0"
   },

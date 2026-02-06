@@ -1,0 +1,3 @@
+# Required secret for admin panel access
+# Set this to a secure password of your choice
+SITE_TOKEN=your-admin-password-here

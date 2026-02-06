@@ -1,5 +1,7 @@
 # Cloudflare Service Status Page
 
+<img width="1484" height="795" alt="ServiceStatusPage" src="https://github.com/user-attachments/assets/59b9b542-b35f-4f85-a38e-c16c0c0a7e93" />
+
 A clean, self-hosted status page for your services — built on Cloudflare Workers.
 
 ![Dark Theme](https://img.shields.io/badge/Theme-Dark%20%2B%20Light-blue)

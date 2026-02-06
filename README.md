@@ -6,6 +6,8 @@
 ![D1 Database](https://img.shields.io/badge/Database-D1-F38020?logo=cloudflare)
 ![Auto Health Checks](https://img.shields.io/badge/Health%20Checks-Every%20Minute-22c55e)
 
+---
+
 <img width="1484" height="795" alt="ServiceStatusPage" src="https://github.com/user-attachments/assets/59b9b542-b35f-4f85-a38e-c16c0c0a7e93" />
 
 ---

@@ -142,7 +142,7 @@
         if (categoryName) {
           html += `<h3 class="category__header">${escapeHtml(categoryName)}</h3>`;
         }
-        html += categoryData.services.map(s => renderServiceCard(s)).join('');
+        html += categoryData.services.map(s => renderServiceCard(s, data.settings.history_hours)).join('');
         html += `</section>`;
       }
       container.innerHTML = html;
@@ -151,11 +151,11 @@
       document.getElementById('last-updated').textContent = new Date(data.last_updated).toLocaleString();
     }
 
-    function renderServiceCard(serviceData) {
+    function renderServiceCard(serviceData, historyHours) {
       const { service, status, uptime, history } = serviceData;
       const currentStatus = status?.status || 'unknown';
       const statusLabel = currentStatus.charAt(0).toUpperCase() + currentStatus.slice(1);
-      const historyBar = generateHistoryBar(history);
+      const historyBar = generateHistoryBar(history, historyHours);
       const statusClass = currentStatus !== 'operational' ? `service-card__status--${currentStatus}` : '';
 
       return `
@@ -180,7 +180,7 @@
       `;
     }
 
-    function generateHistoryBar(history, hours = 24) {
+    function generateHistoryBar(history, hours = 48) {
       const now = new Date();
       const segments = [];
 

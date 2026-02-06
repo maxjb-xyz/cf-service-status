@@ -48,37 +48,37 @@ export const DEFAULT_SETTINGS = `
 INSERT OR IGNORE INTO settings (key, value) VALUES 
   ('site_title', 'Service Status'),
   ('site_description', 'Current status of our services'),
-  ('history_days', '7'),
+  ('history_hours', '48'),
   ('discord_webhook', '');
 `;
 
 export async function initializeDatabase(db: D1Database): Promise<void> {
-    try {
-        // Check if database is already initialized by checking for settings table
-        await db.prepare('SELECT 1 FROM settings LIMIT 1').first();
-        // If we get here, database is already initialized
-    } catch {
-        // Database not initialized, run migrations
-        console.log('Initializing database...');
+  try {
+    // Check if database is already initialized by checking for settings table
+    await db.prepare('SELECT 1 FROM settings LIMIT 1').first();
+    // If we get here, database is already initialized
+  } catch {
+    // Database not initialized, run migrations
+    console.log('Initializing database...');
 
-        // Split schema into individual statements and execute
-        const statements = SCHEMA.split(';')
-            .map(s => s.trim())
-            .filter(s => s.length > 0);
+    // Split schema into individual statements and execute
+    const statements = SCHEMA.split(';')
+      .map(s => s.trim())
+      .filter(s => s.length > 0);
 
-        for (const statement of statements) {
-            await db.prepare(statement).run();
-        }
-
-        // Insert default settings
-        const settingStatements = DEFAULT_SETTINGS.split(';')
-            .map(s => s.trim())
-            .filter(s => s.length > 0);
-
-        for (const statement of settingStatements) {
-            await db.prepare(statement).run();
-        }
-
-        console.log('Database initialized successfully');
+    for (const statement of statements) {
+      await db.prepare(statement).run();
     }
+
+    // Insert default settings
+    const settingStatements = DEFAULT_SETTINGS.split(';')
+      .map(s => s.trim())
+      .filter(s => s.length > 0);
+
+    for (const statement of settingStatements) {
+      await db.prepare(statement).run();
+    }
+
+    console.log('Database initialized successfully');
+  }
 }

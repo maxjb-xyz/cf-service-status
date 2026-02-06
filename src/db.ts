@@ -31,7 +31,7 @@ export interface StatusHistory {
 export interface Settings {
     site_title: string;
     site_description: string;
-    history_days: string;
+    history_hours: string;
     discord_webhook: string;
 }
 

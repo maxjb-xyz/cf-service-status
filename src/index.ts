@@ -77,14 +77,15 @@ app.get('/api/status', async (c) => {
         getLatestStatuses(db)
     ]);
 
-    // Calculate uptime for each service
-    const historyDays = parseInt(settings.history_days) || 7;
+    // Calculate uptime for each service (convert hours to days for uptime calc)
+    const historyHours = parseInt(settings.history_hours) || 48;
+    const historyDaysForUptime = Math.ceil(historyHours / 24);
     const uptimes: Record<string, number> = {};
     const histories: Record<string, StatusHistory[]> = {};
 
     await Promise.all(services.map(async (service) => {
-        uptimes[service.id] = await calculateUptime(db, service.id, historyDays);
-        histories[service.id] = await getStatusHistory(db, service.id, historyDays);
+        uptimes[service.id] = await calculateUptime(db, service.id, historyDaysForUptime);
+        histories[service.id] = await getStatusHistory(db, service.id, historyDaysForUptime);
     }));
 
     // Build response grouped by category
@@ -143,7 +144,7 @@ app.get('/api/status', async (c) => {
         settings: {
             site_title: settings.site_title,
             site_description: settings.site_description,
-            history_days: historyDays
+            history_hours: historyHours
         },
         overall_status: overallStatus,
         categories: Object.values(statusByCategory),

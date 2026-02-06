@@ -101,8 +101,11 @@
                     <div class="settings-card">
                         <h3 class="settings-card__title">History</h3>
                         <div class="form-group">
-                            <label class="form-label" for="history_days">Days to Display</label>
-                            <input type="number" id="history_days" class="form-input" min="1" max="90" placeholder="7">
+                            <label class="form-label" for="history_hours">Hours to Display</label>
+                            <input type="number" id="history_hours" class="form-input" min="1" max="168"
+                                placeholder="48">
+                            <small style="color: var(--text-muted); margin-top: 0.25rem; display: block;">Each history
+                                bar represents 1 hour</small>
                         </div>
                     </div>
                     <div class="settings-card">
@@ -366,7 +369,7 @@
             const data = {
                 site_title: document.getElementById('site_title').value,
                 site_description: document.getElementById('site_description').value,
-                history_days: document.getElementById('history_days').value,
+                history_hours: document.getElementById('history_hours').value,
                 discord_webhook: document.getElementById('discord_webhook').value
             };
 
@@ -439,7 +442,7 @@
                 const data = await apiRequest('/api/admin/settings');
                 document.getElementById('site_title').value = data.settings.site_title || '';
                 document.getElementById('site_description').value = data.settings.site_description || '';
-                document.getElementById('history_days').value = data.settings.history_days || '7';
+                document.getElementById('history_hours').value = data.settings.history_hours || '48';
                 document.getElementById('discord_webhook').value = data.settings.discord_webhook || '';
             } catch (error) {
                 showToast('Failed to load settings', 'error');

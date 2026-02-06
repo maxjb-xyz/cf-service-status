@@ -145,7 +145,7 @@ export const indexHtml = `<!DOCTYPE html>
         if (categoryName) {
           html += \`<h3 class="category__header">\${escapeHtml(categoryName)}</h3>\`;
         }
-        html += categoryData.services.map(s => renderServiceCard(s)).join('');
+        html += categoryData.services.map(s => renderServiceCard(s, data.settings.history_hours)).join('');
         html += \`</section>\`;
       }
       container.innerHTML = html;
@@ -154,11 +154,11 @@ export const indexHtml = `<!DOCTYPE html>
       document.getElementById('last-updated').textContent = new Date(data.last_updated).toLocaleString();
     }
 
-    function renderServiceCard(serviceData) {
+    function renderServiceCard(serviceData, historyHours) {
       const { service, status, uptime, history } = serviceData;
       const currentStatus = status?.status || 'unknown';
       const statusLabel = currentStatus.charAt(0).toUpperCase() + currentStatus.slice(1);
-      const historyBar = generateHistoryBar(history);
+      const historyBar = generateHistoryBar(history, historyHours);
       const statusClass = currentStatus !== 'operational' ? \`service-card__status--\${currentStatus}\` : '';
 
       return \`
@@ -183,7 +183,7 @@ export const indexHtml = `<!DOCTYPE html>
       \`;
     }
 
-    function generateHistoryBar(history, hours = 24) {
+    function generateHistoryBar(history, hours = 48) {
       const now = new Date();
       const segments = [];
 
@@ -333,8 +333,11 @@ export const adminHtml = `<!DOCTYPE html>
                     <div class="settings-card">
                         <h3 class="settings-card__title">History</h3>
                         <div class="form-group">
-                            <label class="form-label" for="history_days">Days to Display</label>
-                            <input type="number" id="history_days" class="form-input" min="1" max="90" placeholder="7">
+                            <label class="form-label" for="history_hours">Hours to Display</label>
+                            <input type="number" id="history_hours" class="form-input" min="1" max="168"
+                                placeholder="48">
+                            <small style="color: var(--text-muted); margin-top: 0.25rem; display: block;">Each history
+                                bar represents 1 hour</small>
                         </div>
                     </div>
                     <div class="settings-card">
@@ -598,7 +601,7 @@ export const adminHtml = `<!DOCTYPE html>
             const data = {
                 site_title: document.getElementById('site_title').value,
                 site_description: document.getElementById('site_description').value,
-                history_days: document.getElementById('history_days').value,
+                history_hours: document.getElementById('history_hours').value,
                 discord_webhook: document.getElementById('discord_webhook').value
             };
 
@@ -671,7 +674,7 @@ export const adminHtml = `<!DOCTYPE html>
                 const data = await apiRequest('/api/admin/settings');
                 document.getElementById('site_title').value = data.settings.site_title || '';
                 document.getElementById('site_description').value = data.settings.site_description || '';
-                document.getElementById('history_days').value = data.settings.history_days || '7';
+                document.getElementById('history_hours').value = data.settings.history_hours || '48';
                 document.getElementById('discord_webhook').value = data.settings.discord_webhook || '';
             } catch (error) {
                 showToast('Failed to load settings', 'error');

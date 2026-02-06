@@ -27,7 +27,7 @@ A clean, self-hosted status page for your services — built on Cloudflare Worke
 
 Just click deploy, enter your admin password, and you're done!
 
-## 🛠️ Local Development
+## Local Development
 
 ```bash
 git clone https://github.com/maxjb-xyz/cf-service-status

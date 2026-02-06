@@ -70,7 +70,3 @@ Access `/admin` and log in with your SITE_TOKEN to:
 | `GET /api/status` | Get all services with current status |
 | `GET /api/history/:id` | Get service history |
 | `POST /api/admin/*` | Admin endpoints (requires auth) |
-
-## License
-
-MIT

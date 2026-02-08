@@ -5,7 +5,7 @@ import {
     getCategories,
     getSettings,
     getLatestStatuses,
-    getStatusHistory,
+    getHourlyHistory,
     calculateUptime,
     createService,
     updateService,
@@ -16,7 +16,8 @@ import {
     updateSetting,
     Service,
     Category,
-    StatusHistory
+    StatusHistory,
+    HourlyStatus
 } from './db';
 import { runHealthChecks } from './health-check';
 import { indexHtml, adminHtml, stylesCSS } from './static';
@@ -25,6 +26,7 @@ import { initializeDatabase } from './migrate';
 export interface Env {
     DB: D1Database;
     SITE_TOKEN: string;
+    WORKER_URL?: string;  // Optional: set this to enable HTTP-triggered checks for Smart Placement
 }
 
 const app = new Hono<{ Bindings: Env }>();
@@ -77,15 +79,14 @@ app.get('/api/status', async (c) => {
         getLatestStatuses(db)
     ]);
 
-    // Calculate uptime for each service (convert hours to days for uptime calc)
+    // Calculate uptime for each service using hourly data
     const historyHours = parseInt(settings.history_hours) || 48;
-    const historyDaysForUptime = Math.ceil(historyHours / 24);
     const uptimes: Record<string, number> = {};
-    const histories: Record<string, StatusHistory[]> = {};
+    const histories: Record<string, HourlyStatus[]> = {};
 
     await Promise.all(services.map(async (service) => {
-        uptimes[service.id] = await calculateUptime(db, service.id, historyDaysForUptime);
-        histories[service.id] = await getStatusHistory(db, service.id, historyDaysForUptime);
+        uptimes[service.id] = await calculateUptime(db, service.id, historyHours);
+        histories[service.id] = await getHourlyHistory(db, service.id, historyHours);
     }));
 
     // Build response grouped by category
@@ -95,7 +96,7 @@ app.get('/api/status', async (c) => {
             service: Service;
             status: StatusHistory | null;
             uptime: number;
-            history: StatusHistory[];
+            history: HourlyStatus[];
         }>;
     }> = {};
 
@@ -165,13 +166,13 @@ app.get('/api/status', async (c) => {
     });
 });
 
-// Get history for a specific service
+// Get hourly history for a specific service
 app.get('/api/history/:serviceId', async (c) => {
     const db = c.env.DB;
     const serviceId = c.req.param('serviceId');
-    const days = parseInt(c.req.query('days') || '7');
+    const hours = parseInt(c.req.query('hours') || '48');
 
-    const history = await getStatusHistory(db, serviceId, days);
+    const history = await getHourlyHistory(db, serviceId, hours);
     return c.json({ history });
 });
 
@@ -295,6 +296,18 @@ app.post('/api/admin/check', adminAuth, async (c) => {
     return c.json({ success: true, message: 'Health checks completed' });
 });
 
+// Internal health check endpoint (for cron to call via HTTP - respects Smart Placement)
+app.post('/api/internal/check', async (c) => {
+    // Verify internal call via header
+    const internalKey = c.req.header('X-Internal-Key');
+    if (internalKey !== c.env.SITE_TOKEN) {
+        return c.json({ error: 'Unauthorized' }, 401);
+    }
+
+    await runHealthChecks(c.env);
+    return c.json({ success: true });
+});
+
 // =====================
 // Scheduled Handler
 // =====================
@@ -303,6 +316,28 @@ export default {
     fetch: app.fetch,
 
     async scheduled(event: ScheduledEvent, env: Env, ctx: ExecutionContext): Promise<void> {
-        ctx.waitUntil(runHealthChecks(env));
+        // If WORKER_URL is set, call via HTTP to respect Smart Placement
+        // Otherwise fall back to direct execution
+        if (env.WORKER_URL) {
+            try {
+                const response = await fetch(`${env.WORKER_URL}/api/internal/check`, {
+                    method: 'POST',
+                    headers: {
+                        'X-Internal-Key': env.SITE_TOKEN,
+                        'Content-Type': 'application/json'
+                    }
+                });
+
+                if (response.ok) {
+                    return; // Success via HTTP
+                }
+                console.log('HTTP check failed, falling back to direct execution');
+            } catch (error) {
+                console.log('HTTP check error, falling back to direct execution:', error);
+            }
+        }
+
+        // Direct execution (doesn't respect Smart Placement for cron)
+        await runHealthChecks(env);
     }
 };

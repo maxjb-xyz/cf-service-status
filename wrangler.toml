@@ -10,6 +10,13 @@ binding = "DB"
 database_name = "status-db"
 database_id = "placeholder"
 
-# Scheduled health checks - runs every minute
+# Scheduled health checks - runs every 5 minutes
 [triggers]
-crons = ["* * * * *"]
+crons = ["*/5 * * * *"]
+
+# Environment variables
+# Set WORKER_URL to your worker's URL to enable HTTP-triggered checks
+# This makes cron jobs respect Smart Placement
+# Example: WORKER_URL = "https://cf-service-status.your-subdomain.workers.dev"
+[vars]
+# WORKER_URL = ""

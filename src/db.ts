@@ -36,6 +36,16 @@ export interface Settings {
     discord_webhook: string;
 }
 
+export interface HourlyStatus {
+    id: string;
+    service_id: string;
+    hour_start: string;
+    status: 'operational' | 'degraded' | 'outage';
+    avg_response_time: number | null;
+    check_count: number;
+    check_location: string | null;
+}
+
 // Generate a simple unique ID
 export function generateId(): string {
     return crypto.randomUUID();
@@ -220,15 +230,15 @@ export async function getLatestStatuses(db: D1Database): Promise<Map<string, Sta
     return map;
 }
 
-// Calculate uptime percentage for a service
-export async function calculateUptime(db: D1Database, serviceId: string, days: number = 7): Promise<number> {
-    const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
+// Calculate uptime percentage from hourly data (much more efficient)
+export async function calculateUptime(db: D1Database, serviceId: string, hours: number = 48): Promise<number> {
+    const since = new Date(Date.now() - hours * 60 * 60 * 1000).toISOString();
     const result = await db.prepare(`
     SELECT 
       COUNT(*) as total,
       SUM(CASE WHEN status = 'operational' THEN 1 ELSE 0 END) as operational
-    FROM status_history
-    WHERE service_id = ? AND checked_at >= ?
+    FROM hourly_status
+    WHERE service_id = ? AND hour_start >= ?
   `)
         .bind(serviceId, since)
         .first<{ total: number; operational: number }>();
@@ -237,8 +247,78 @@ export async function calculateUptime(db: D1Database, serviceId: string, days: n
     return Math.round((result.operational / result.total) * 10000) / 100;
 }
 
-// Clean up old history records
-export async function cleanupOldHistory(db: D1Database, keepDays: number = 90): Promise<void> {
-    const cutoff = new Date(Date.now() - keepDays * 24 * 60 * 60 * 1000).toISOString();
-    await db.prepare('DELETE FROM status_history WHERE checked_at < ?').bind(cutoff).run();
+// Get hourly status history for the status page (48 rows instead of 2880)
+export async function getHourlyHistory(
+    db: D1Database,
+    serviceId: string,
+    hours: number = 48
+): Promise<HourlyStatus[]> {
+    const since = new Date(Date.now() - hours * 60 * 60 * 1000).toISOString();
+    const result = await db.prepare(`
+    SELECT * FROM hourly_status 
+    WHERE service_id = ? AND hour_start >= ?
+    ORDER BY hour_start ASC
+  `)
+        .bind(serviceId, since)
+        .all();
+    return result.results as unknown as HourlyStatus[];
+}
+
+// Upsert hourly status - worst status wins
+export async function upsertHourlyStatus(
+    db: D1Database,
+    serviceId: string,
+    status: 'operational' | 'degraded' | 'outage',
+    responseTime: number | null,
+    checkLocation: string | null
+): Promise<void> {
+    const now = new Date();
+    // Round down to hour start
+    const hourStart = new Date(now.getFullYear(), now.getMonth(), now.getDate(), now.getHours(), 0, 0, 0).toISOString();
+
+    // Priority: outage > degraded > operational
+    const statusPriority: Record<string, number> = { operational: 1, degraded: 2, outage: 3 };
+
+    // Try to get existing record
+    const existing = await db.prepare(`
+        SELECT id, status, avg_response_time, check_count FROM hourly_status 
+        WHERE service_id = ? AND hour_start = ?
+    `)
+        .bind(serviceId, hourStart)
+        .first<{ id: string; status: string; avg_response_time: number | null; check_count: number }>();
+
+    if (existing) {
+        // Update existing - keep worst status, update running average
+        const newStatus = statusPriority[status] > statusPriority[existing.status] ? status : existing.status;
+        const newCount = existing.check_count + 1;
+        const newAvg = responseTime !== null
+            ? Math.round(((existing.avg_response_time || 0) * existing.check_count + responseTime) / newCount)
+            : existing.avg_response_time;
+
+        await db.prepare(`
+            UPDATE hourly_status 
+            SET status = ?, avg_response_time = ?, check_count = ?, check_location = ?
+            WHERE id = ?
+        `)
+            .bind(newStatus, newAvg, newCount, checkLocation, existing.id)
+            .run();
+    } else {
+        // Insert new record
+        const id = generateId();
+        await db.prepare(`
+            INSERT INTO hourly_status (id, service_id, hour_start, status, avg_response_time, check_count, check_location)
+            VALUES (?, ?, ?, ?, ?, 1, ?)
+        `)
+            .bind(id, serviceId, hourStart, status, responseTime, checkLocation)
+            .run();
+    }
+}
+
+// Clean up old history records (raw data kept for 24 hours, hourly for 90 days)
+export async function cleanupOldHistory(db: D1Database): Promise<void> {
+    const rawCutoff = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+    const hourlyCutoff = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString();
+
+    await db.prepare('DELETE FROM status_history WHERE checked_at < ?').bind(rawCutoff).run();
+    await db.prepare('DELETE FROM hourly_status WHERE hour_start < ?').bind(hourlyCutoff).run();
 }

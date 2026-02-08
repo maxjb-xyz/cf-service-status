@@ -18,7 +18,7 @@
 - **Dark/Light Theme** — Toggle between themes, preference saved
 - **Discord Alerts** — Get notified when services go down
 - **Admin Panel** — Token-protected service management
-- **Auto Checks** — Health checks every minute via cron triggers
+- **Auto Checks** — Health checks every 5 minutes (configurable) via cron triggers
 - **Responsive** — Works on all devices
 
 ## One-Click Deploy

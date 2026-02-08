@@ -2,6 +2,7 @@ import {
     getServices,
     getLatestStatuses,
     addStatusHistory,
+    upsertHourlyStatus,
     getSettings,
     cleanupOldHistory,
     StatusHistory
@@ -135,7 +136,7 @@ export async function runHealthChecks(env: Env): Promise<void> {
         const previousHistory = latestStatuses.get(service.id);
         const previousStatus = previousHistory?.status ?? null;
 
-        // Record the new status
+        // Record the new status (raw data)
         await addStatusHistory(
             db,
             service.id,
@@ -143,6 +144,15 @@ export async function runHealthChecks(env: Env): Promise<void> {
             result.responseTime,
             result.statusCode,
             result.errorMessage,
+            result.checkLocation
+        );
+
+        // Aggregate into hourly bucket
+        await upsertHourlyStatus(
+            db,
+            service.id,
+            result.status,
+            result.responseTime,
             result.checkLocation
         );
 
@@ -165,6 +175,6 @@ export async function runHealthChecks(env: Env): Promise<void> {
         console.log(`Checked ${service.name}: ${result.status} (${result.responseTime}ms${locationInfo})`);
     }
 
-    // Cleanup old history (keep 90 days)
-    await cleanupOldHistory(db, 90);
+    // Cleanup old history
+    await cleanupOldHistory(db);
 }

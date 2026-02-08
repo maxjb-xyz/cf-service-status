@@ -208,27 +208,21 @@
       const now = new Date();
       const segments = [];
 
+      // Create a map of hour_start -> status from the hourly data
+      const hourlyStatusMap = new Map();
+      for (const h of history) {
+        // hour_start is the key from HourlyStatus
+        const hourKey = new Date(h.hour_start).getTime();
+        hourlyStatusMap.set(hourKey, h.status);
+      }
+
       for (let i = hours - 1; i >= 0; i--) {
         const hourStart = new Date(now);
         hourStart.setHours(hourStart.getHours() - i, 0, 0, 0);
-        const hourEnd = new Date(hourStart);
-        hourEnd.setHours(hourEnd.getHours() + 1);
+        const hourKey = hourStart.getTime();
 
-        const hourRecords = history.filter(h => {
-          const checkedAt = new Date(h.checked_at);
-          return checkedAt >= hourStart && checkedAt < hourEnd;
-        });
-
-        let status = 'unknown';
-        if (hourRecords.length > 0) {
-          if (hourRecords.some(r => r.status === 'outage')) {
-            status = 'outage';
-          } else if (hourRecords.some(r => r.status === 'degraded')) {
-            status = 'degraded';
-          } else {
-            status = 'operational';
-          }
-        }
+        // Look up the pre-aggregated status for this hour
+        const status = hourlyStatusMap.get(hourKey) || 'unknown';
 
         const timeStr = hourStart.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
         const tooltip = `${timeStr}: ${status.charAt(0).toUpperCase() + status.slice(1)}`;

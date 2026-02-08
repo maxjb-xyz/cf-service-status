@@ -22,7 +22,7 @@ CREATE TABLE IF NOT EXISTS services (
   created_at TEXT DEFAULT CURRENT_TIMESTAMP
 );
 
--- Status history records
+-- Status history records (raw data - kept for 24 hours only)
 CREATE TABLE IF NOT EXISTS status_history (
   id TEXT PRIMARY KEY,
   service_id TEXT NOT NULL REFERENCES services(id) ON DELETE CASCADE,
@@ -37,6 +37,22 @@ CREATE TABLE IF NOT EXISTS status_history (
 -- Create index for faster history queries
 CREATE INDEX IF NOT EXISTS idx_status_history_service_time 
 ON status_history(service_id, checked_at DESC);
+
+-- Hourly aggregated status (one row per service per hour)
+CREATE TABLE IF NOT EXISTS hourly_status (
+  id TEXT PRIMARY KEY,
+  service_id TEXT NOT NULL REFERENCES services(id) ON DELETE CASCADE,
+  hour_start TEXT NOT NULL,
+  status TEXT NOT NULL,
+  avg_response_time INTEGER,
+  check_count INTEGER DEFAULT 0,
+  check_location TEXT,
+  UNIQUE(service_id, hour_start)
+);
+
+-- Index for hourly status queries
+CREATE INDEX IF NOT EXISTS idx_hourly_status_service_hour 
+ON hourly_status(service_id, hour_start DESC);
 
 -- Site settings (key-value store)
 CREATE TABLE IF NOT EXISTS settings (

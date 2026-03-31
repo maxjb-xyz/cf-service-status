@@ -69,10 +69,16 @@ INSERT OR IGNORE INTO settings (key, value) VALUES
   ('discord_webhook', '');
 `;
 
+// Module-level flag: once initialized within this Worker instance, skip future checks.
+let initialized = false;
+
 export async function initializeDatabase(db: D1Database): Promise<void> {
+  if (initialized) return;
+
   try {
     // Check if database is already initialized by checking for settings table
     await db.prepare('SELECT 1 FROM settings LIMIT 1').first();
+    initialized = true;
     // If we get here, database is already initialized
   } catch {
     // Database not initialized, run migrations
@@ -96,6 +102,7 @@ export async function initializeDatabase(db: D1Database): Promise<void> {
       await db.prepare(statement).run();
     }
 
+    initialized = true;
     console.log('Database initialized successfully');
   }
 }

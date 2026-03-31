@@ -10,9 +10,9 @@ binding = "DB"
 database_name = "status-db"
 database_id = "placeholder"
 
-# Scheduled health checks - runs every 5 minutes
+# Scheduled health checks - runs every 15 minutes
 [triggers]
-crons = ["*/5 * * * *"]
+crons = ["*/15 * * * *"]
 
 # Environment variables
 # Set WORKER_URL to your worker's URL to enable HTTP-triggered checks

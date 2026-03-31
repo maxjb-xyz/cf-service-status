@@ -22,16 +22,21 @@ interface CheckResult {
     checkLocation: string | null;
 }
 
+// Cached per Worker instance — location doesn't change between invocations
+let cachedWorkerLocation: string | null | undefined = undefined;
+
 // Get the current CF datacenter location by querying the trace endpoint
 async function getWorkerLocation(): Promise<string | null> {
+    if (cachedWorkerLocation !== undefined) return cachedWorkerLocation;
     try {
         const response = await fetch('https://cloudflare.com/cdn-cgi/trace');
         const text = await response.text();
         const match = text.match(/colo=([A-Z]{3})/);
-        return match ? match[1] : null;
+        cachedWorkerLocation = match ? match[1] : null;
     } catch {
-        return null;
+        cachedWorkerLocation = null;
     }
+    return cachedWorkerLocation;
 }
 
 async function checkService(
@@ -175,6 +180,8 @@ export async function runHealthChecks(env: Env): Promise<void> {
         console.log(`Checked ${service.name}: ${result.status} (${result.responseTime}ms${locationInfo})`);
     }
 
-    // Cleanup old history
-    await cleanupOldHistory(db);
+    // Cleanup old history once per day (at midnight UTC) to avoid constant D1 deletes
+    if (new Date().getUTCHours() === 0) {
+        await cleanupOldHistory(db);
+    }
 }

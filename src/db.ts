@@ -230,6 +230,63 @@ export async function getLatestStatuses(db: D1Database): Promise<Map<string, Sta
     return map;
 }
 
+// Calculate uptime percentage for all given service IDs in a single query
+export async function calculateUptimeBatch(
+    db: D1Database,
+    serviceIds: string[],
+    hours: number = 48
+): Promise<Map<string, number>> {
+    if (serviceIds.length === 0) return new Map();
+    const since = new Date(Date.now() - hours * 60 * 60 * 1000).toISOString();
+    const placeholders = serviceIds.map(() => '?').join(', ');
+    const result = await db.prepare(`
+        SELECT
+            service_id,
+            COUNT(*) as total,
+            SUM(CASE WHEN status = 'operational' THEN 1 ELSE 0 END) as operational
+        FROM hourly_status
+        WHERE service_id IN (${placeholders}) AND hour_start >= ?
+        GROUP BY service_id
+    `)
+        .bind(...serviceIds, since)
+        .all<{ service_id: string; total: number; operational: number }>();
+
+    const map = new Map<string, number>();
+    for (const row of result.results) {
+        map.set(row.service_id, row.total === 0 ? 100 : Math.round((row.operational / row.total) * 10000) / 100);
+    }
+    // Default 100% uptime for services with no data yet
+    for (const id of serviceIds) {
+        if (!map.has(id)) map.set(id, 100);
+    }
+    return map;
+}
+
+// Get hourly history for all given service IDs in a single query
+export async function getHourlyHistoryBatch(
+    db: D1Database,
+    serviceIds: string[],
+    hours: number = 48
+): Promise<Map<string, HourlyStatus[]>> {
+    if (serviceIds.length === 0) return new Map();
+    const since = new Date(Date.now() - hours * 60 * 60 * 1000).toISOString();
+    const placeholders = serviceIds.map(() => '?').join(', ');
+    const result = await db.prepare(`
+        SELECT * FROM hourly_status
+        WHERE service_id IN (${placeholders}) AND hour_start >= ?
+        ORDER BY service_id, hour_start ASC
+    `)
+        .bind(...serviceIds, since)
+        .all<HourlyStatus>();
+
+    const map = new Map<string, HourlyStatus[]>();
+    for (const id of serviceIds) map.set(id, []);
+    for (const row of result.results) {
+        map.get(row.service_id)!.push(row);
+    }
+    return map;
+}
+
 // Calculate uptime percentage from hourly data (much more efficient)
 export async function calculateUptime(db: D1Database, serviceId: string, hours: number = 48): Promise<number> {
     const since = new Date(Date.now() - hours * 60 * 60 * 1000).toISOString();

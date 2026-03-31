@@ -242,7 +242,7 @@ export const indexHtml = `<!DOCTYPE html>
     }
 
     loadStatus();
-    setInterval(loadStatus, 60000);
+    setInterval(loadStatus, 300000); // Refresh every 5 minutes
   </script>
 </body>
 
@@ -460,7 +460,13 @@ export const adminHtml = `<!DOCTYPE html>
         });
 
         // State
-        let token = localStorage.getItem('admin_token') || '';
+        // sessionStorage is cleared when the tab is closed, reducing token exposure vs. localStorage
+        // Migrate any token persisted in localStorage from older versions
+        if (localStorage.getItem('admin_token')) {
+            sessionStorage.setItem('admin_token', localStorage.getItem('admin_token'));
+            localStorage.removeItem('admin_token');
+        }
+        let token = sessionStorage.getItem('admin_token') || '';
         let services = [];
         let categories = [];
 
@@ -472,7 +478,7 @@ export const adminHtml = `<!DOCTYPE html>
         if (token) {
             checkToken().then(valid => {
                 if (valid) showAdminView();
-                else localStorage.removeItem('admin_token');
+                else sessionStorage.removeItem('admin_token');
             });
         }
 
@@ -489,7 +495,7 @@ export const adminHtml = `<!DOCTYPE html>
                 });
 
                 if (response.ok) {
-                    localStorage.setItem('admin_token', token);
+                    sessionStorage.setItem('admin_token', token);
                     showAdminView();
                 } else {
                     showToast('Invalid token', 'error');
@@ -502,7 +508,7 @@ export const adminHtml = `<!DOCTYPE html>
         // Logout
         document.getElementById('logout-btn').addEventListener('click', () => {
             token = '';
-            localStorage.removeItem('admin_token');
+            sessionStorage.removeItem('admin_token');
             loginView.style.display = 'block';
             adminView.style.display = 'none';
         });

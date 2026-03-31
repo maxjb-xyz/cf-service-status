@@ -210,7 +210,13 @@
         });
 
         // State
-        let token = localStorage.getItem('admin_token') || '';
+        // sessionStorage is cleared when the tab is closed, reducing token exposure vs. localStorage
+        // Migrate any token persisted in localStorage from older versions
+        if (localStorage.getItem('admin_token')) {
+            sessionStorage.setItem('admin_token', localStorage.getItem('admin_token'));
+            localStorage.removeItem('admin_token');
+        }
+        let token = sessionStorage.getItem('admin_token') || '';
         let services = [];
         let categories = [];
 
@@ -222,7 +228,7 @@
         if (token) {
             checkToken().then(valid => {
                 if (valid) showAdminView();
-                else localStorage.removeItem('admin_token');
+                else sessionStorage.removeItem('admin_token');
             });
         }
 
@@ -239,7 +245,7 @@
                 });
 
                 if (response.ok) {
-                    localStorage.setItem('admin_token', token);
+                    sessionStorage.setItem('admin_token', token);
                     showAdminView();
                 } else {
                     showToast('Invalid token', 'error');
@@ -252,7 +258,7 @@
         // Logout
         document.getElementById('logout-btn').addEventListener('click', () => {
             token = '';
-            localStorage.removeItem('admin_token');
+            sessionStorage.removeItem('admin_token');
             loginView.style.display = 'block';
             adminView.style.display = 'none';
         });

@@ -6,7 +6,8 @@ import {
     getSettings,
     getLatestStatuses,
     getHourlyHistory,
-    calculateUptime,
+    getHourlyHistoryBatch,
+    calculateUptimeBatch,
     createService,
     updateService,
     deleteService,
@@ -31,14 +32,103 @@ export interface Env {
 
 const app = new Hono<{ Bindings: Env }>();
 
-// Auto-initialize database on first request
+// =====================
+// Security Headers
+// =====================
+
+app.use('*', async (c, next) => {
+    await next();
+    c.res.headers.set('X-Content-Type-Options', 'nosniff');
+    c.res.headers.set('X-Frame-Options', 'DENY');
+    c.res.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin');
+    c.res.headers.set(
+        'Content-Security-Policy',
+        "default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'"
+    );
+});
+
+// Initialize DB on first request per Worker instance; subsequent calls are no-ops (module-level flag)
 app.use('*', async (c, next) => {
     await initializeDatabase(c.env.DB);
     await next();
 });
 
-// Enable CORS for API routes
-app.use('/api/*', cors());
+// Enable CORS for public API routes only (admin routes are same-origin)
+app.use('/api/status', cors());
+app.use('/api/history/*', cors());
+
+// =====================
+// Rate Limiting (login endpoint)
+// =====================
+
+// In-memory rate limit store — not persistent across Worker cold starts,
+// but provides meaningful brute-force protection within a running instance.
+const loginRateLimit = new Map<string, { count: number; resetAt: number }>();
+const RATE_LIMIT_WINDOW_MS = 15 * 60 * 1000; // 15 minutes
+const RATE_LIMIT_MAX = 10;
+
+function checkRateLimit(ip: string): boolean {
+    const now = Date.now();
+    const entry = loginRateLimit.get(ip);
+    if (entry) {
+        if (now > entry.resetAt) {
+            loginRateLimit.delete(ip);
+        } else if (entry.count >= RATE_LIMIT_MAX) {
+            return false;
+        }
+    }
+    return true;
+}
+
+function recordLoginAttempt(ip: string, succeeded: boolean): void {
+    if (succeeded) {
+        loginRateLimit.delete(ip);
+        return;
+    }
+    const now = Date.now();
+    const entry = loginRateLimit.get(ip);
+    if (entry && now <= entry.resetAt) {
+        entry.count += 1;
+    } else {
+        loginRateLimit.set(ip, { count: 1, resetAt: now + RATE_LIMIT_WINDOW_MS });
+    }
+}
+
+// =====================
+// URL Validation (SSRF prevention)
+// =====================
+
+const PRIVATE_IP_PATTERNS = [
+    /^localhost$/i,
+    /^127\./,
+    /^0\.0\.0\.0$/,
+    /^::1$/,
+    /^169\.254\./,           // link-local / cloud metadata
+    /^10\./,                  // RFC 1918
+    /^172\.(1[6-9]|2\d|3[01])\./, // RFC 1918
+    /^192\.168\./,            // RFC 1918
+    /^fc00:/i,                // IPv6 private
+    /^fe80:/i,                // IPv6 link-local
+];
+
+function validateServiceUrl(rawUrl: string): string | null {
+    let parsed: URL;
+    try {
+        parsed = new URL(rawUrl);
+    } catch {
+        return 'Invalid URL format';
+    }
+    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+        return 'URL must use http or https';
+    }
+    const hostname = parsed.hostname.replace(/^\[|\]$/g, ''); // strip IPv6 brackets
+    for (const pattern of PRIVATE_IP_PATTERNS) {
+        if (pattern.test(hostname)) {
+            return 'URL must not point to a private or internal address';
+        }
+    }
+    return null; // valid
+}
 
 // =====================
 // Static Files
@@ -79,15 +169,17 @@ app.get('/api/status', async (c) => {
         getLatestStatuses(db)
     ]);
 
-    // Calculate uptime for each service using hourly data
-    const historyHours = parseInt(settings.history_hours) || 48;
-    const uptimes: Record<string, number> = {};
-    const histories: Record<string, HourlyStatus[]> = {};
+    // Fetch uptime and history for all services in two batch queries (not N per service)
+    const historyHours = Math.min(Math.max(parseInt(settings.history_hours) || 48, 1), 720);
+    const serviceIds = services.map(s => s.id);
 
-    await Promise.all(services.map(async (service) => {
-        uptimes[service.id] = await calculateUptime(db, service.id, historyHours);
-        histories[service.id] = await getHourlyHistory(db, service.id, historyHours);
-    }));
+    const [uptimeMap, historyMap] = await Promise.all([
+        calculateUptimeBatch(db, serviceIds, historyHours),
+        getHourlyHistoryBatch(db, serviceIds, historyHours)
+    ]);
+
+    const uptimes: Record<string, number> = Object.fromEntries(uptimeMap);
+    const histories: Record<string, HourlyStatus[]> = Object.fromEntries(historyMap);
 
     // Build response grouped by category
     const statusByCategory: Record<string, {
@@ -170,7 +262,7 @@ app.get('/api/status', async (c) => {
 app.get('/api/history/:serviceId', async (c) => {
     const db = c.env.DB;
     const serviceId = c.req.param('serviceId');
-    const hours = parseInt(c.req.query('hours') || '48');
+    const hours = Math.min(Math.max(parseInt(c.req.query('hours') || '48') || 48, 1), 720);
 
     const history = await getHourlyHistory(db, serviceId, hours);
     return c.json({ history });
@@ -194,9 +286,17 @@ const adminAuth = async (c: any, next: () => Promise<void>) => {
 
 // Login endpoint - validates token
 app.post('/api/admin/login', async (c) => {
-    const body = await c.req.json<{ token: string }>();
+    const ip = c.req.header('CF-Connecting-IP') ?? c.req.header('X-Forwarded-For') ?? 'unknown';
 
-    if (body.token === c.env.SITE_TOKEN) {
+    if (!checkRateLimit(ip)) {
+        return c.json({ error: 'Too many login attempts. Try again later.' }, 429);
+    }
+
+    const body = await c.req.json<{ token: string }>();
+    const succeeded = body.token === c.env.SITE_TOKEN;
+    recordLoginAttempt(ip, succeeded);
+
+    if (succeeded) {
         return c.json({ success: true, message: 'Authenticated' });
     }
 
@@ -225,6 +325,11 @@ app.post('/api/admin/services', adminAuth, async (c) => {
         return c.json({ error: 'Name and URL are required' }, 400);
     }
 
+    const urlError = validateServiceUrl(body.url);
+    if (urlError) {
+        return c.json({ error: urlError }, 400);
+    }
+
     const service = await createService(c.env.DB, body);
     return c.json({ service }, 201);
 });
@@ -232,6 +337,13 @@ app.post('/api/admin/services', adminAuth, async (c) => {
 app.put('/api/admin/services/:id', adminAuth, async (c) => {
     const id = c.req.param('id');
     const body = await c.req.json<Partial<Service>>();
+
+    if (body.url) {
+        const urlError = validateServiceUrl(body.url);
+        if (urlError) {
+            return c.json({ error: urlError }, 400);
+        }
+    }
 
     await updateService(c.env.DB, id, body);
     return c.json({ success: true });

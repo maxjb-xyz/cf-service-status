@@ -4,7 +4,7 @@
 
 ![Dark Theme](https://img.shields.io/badge/Theme-Dark%20%2B%20Light-blue)
 ![D1 Database](https://img.shields.io/badge/Database-D1-F38020?logo=cloudflare)
-![Auto Health Checks](https://img.shields.io/badge/Health%20Checks-Every%20Minute-22c55e)
+![Auto Health Checks](https://img.shields.io/badge/Health%20Checks-Every%2015%20Minutes-22c55e)
 
 ---
 

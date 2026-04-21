@@ -4,7 +4,7 @@
 
 ![Dark Theme](https://img.shields.io/badge/Theme-Dark%20%2B%20Light-blue)
 ![D1 Database](https://img.shields.io/badge/Database-D1-F38020?logo=cloudflare)
-![Auto Health Checks](https://img.shields.io/badge/Health%20Checks-Every%20Minute-22c55e)
+![Auto Health Checks](https://img.shields.io/badge/Health%20Checks-Every%2015%20Minutes-22c55e)
 
 ---
 
@@ -18,7 +18,7 @@
 - **Dark/Light Theme** — Toggle between themes, preference saved
 - **Discord Alerts** — Get notified when services go down
 - **Admin Panel** — Token-protected service management
-- **Auto Checks** — Health checks every 5 minutes (configurable) via cron triggers
+- **Auto Checks** — Health checks every 15 minutes (configurable) via cron triggers
 - **Responsive** — Works on all devices
 
 ## One-Click Deploy

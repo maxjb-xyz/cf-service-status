@@ -11,6 +11,7 @@ export interface DiscordWebhookPayload {
     username?: string;
     avatar_url?: string;
     embeds: DiscordEmbed[];
+    flags?: number;
 }
 
 // Status colors for Discord embeds
@@ -31,7 +32,8 @@ export async function sendDiscordNotification(
     serviceName: string,
     previousStatus: string | null,
     newStatus: 'operational' | 'degraded' | 'outage',
-    details?: { responseTime?: number; statusCode?: number; errorMessage?: string }
+    details?: { responseTime?: number; statusCode?: number; errorMessage?: string },
+    silent?: boolean
 ): Promise<void> {
     if (!webhookUrl) return;
 
@@ -64,7 +66,8 @@ export async function sendDiscordNotification(
             fields: fields.length > 0 ? fields : undefined,
             timestamp: new Date().toISOString(),
             footer: { text: 'Service Status Monitor' }
-        }]
+        }],
+        ...(silent ? { flags: 4096 } : {})
     };
 
     try {

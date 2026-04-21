@@ -172,7 +172,8 @@ export async function runHealthChecks(env: Env): Promise<void> {
                     responseTime: result.responseTime,
                     statusCode: result.statusCode ?? undefined,
                     errorMessage: result.errorMessage ?? undefined
-                }
+                },
+                settings.discord_silent === 'true'
             );
         }
 

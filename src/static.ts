@@ -361,13 +361,19 @@ export const adminHtml = `<!DOCTYPE html>
                     <div class="settings-card">
                         <h3 class="settings-card__title">Notifications</h3>
                         <div class="form-group">
-                            <label class="form-label" for="discord_webhook">Discord Webhook URL</label>
-                            <input type="url" id="discord_webhook" class="form-input"
-                                placeholder="https://discord.com/api/webhooks/...">
-                        </div>
+                        <label class="form-label" for="discord_webhook">Discord Webhook URL</label>
+                        <input type="url" id="discord_webhook" class="form-input"
+                            placeholder="https://discord.com/api/webhooks/...">
                     </div>
-                    <button type="submit" class="btn btn--primary">Save Settings</button>
-                </form>
+                    <div class="form-group">
+                        <label class="form-label" style="display:flex;align-items:center;gap:0.5rem;cursor:pointer;">
+                            <input type="checkbox" id="discord_silent">
+                            Deliver silently (suppress notifications)
+                        </label>
+                    </div>
+                </div>
+                <button type="submit" class="btn btn--primary">Save Settings</button>
+            </form>
             </section>
         </div>
 
@@ -626,7 +632,8 @@ export const adminHtml = `<!DOCTYPE html>
                 site_title: document.getElementById('site_title').value,
                 site_description: document.getElementById('site_description').value,
                 history_hours: document.getElementById('history_hours').value,
-                discord_webhook: document.getElementById('discord_webhook').value
+                discord_webhook: document.getElementById('discord_webhook').value,
+                discord_silent: document.getElementById('discord_silent').checked ? 'true' : 'false'
             };
 
             try {
@@ -700,6 +707,7 @@ export const adminHtml = `<!DOCTYPE html>
                 document.getElementById('site_description').value = data.settings.site_description || '';
                 document.getElementById('history_hours').value = data.settings.history_hours || '48';
                 document.getElementById('discord_webhook').value = data.settings.discord_webhook || '';
+                document.getElementById('discord_silent').checked = data.settings.discord_silent === 'true';
             } catch (error) {
                 showToast('Failed to load settings', 'error');
             }

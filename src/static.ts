@@ -361,19 +361,19 @@ export const adminHtml = `<!DOCTYPE html>
                     <div class="settings-card">
                         <h3 class="settings-card__title">Notifications</h3>
                         <div class="form-group">
-                        <label class="form-label" for="discord_webhook">Discord Webhook URL</label>
-                        <input type="url" id="discord_webhook" class="form-input"
-                            placeholder="https://discord.com/api/webhooks/...">
+                            <label class="form-label" for="discord_webhook">Discord Webhook URL</label>
+                            <input type="url" id="discord_webhook" class="form-input"
+                                placeholder="https://discord.com/api/webhooks/...">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label" style="display:flex;align-items:center;gap:0.5rem;cursor:pointer;">
+                                <input type="checkbox" id="discord_silent">
+                                Deliver silently (suppress notifications)
+                            </label>
+                        </div>
                     </div>
-                    <div class="form-group">
-                        <label class="form-label" style="display:flex;align-items:center;gap:0.5rem;cursor:pointer;">
-                            <input type="checkbox" id="discord_silent">
-                            Deliver silently (suppress notifications)
-                        </label>
-                    </div>
-                </div>
-                <button type="submit" class="btn btn--primary">Save Settings</button>
-            </form>
+                    <button type="submit" class="btn btn--primary">Save Settings</button>
+                </form>
             </section>
         </div>
 

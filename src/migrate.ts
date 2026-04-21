@@ -66,7 +66,8 @@ INSERT OR IGNORE INTO settings (key, value) VALUES
   ('site_title', 'Service Status'),
   ('site_description', 'Current status of our services'),
   ('history_hours', '48'),
-  ('discord_webhook', '');
+  ('discord_webhook', ''),
+  ('discord_silent', 'false');
 `;
 
 // Module-level flag: once initialized within this Worker instance, skip future checks.

@@ -34,6 +34,7 @@ export interface Settings {
     site_description: string;
     history_hours: string;
     discord_webhook: string;
+    discord_silent: string;
 }
 
 export interface HourlyStatus {
